@@ -1,0 +1,21 @@
+{
+  "name": "2048-remade",
+  "version": "1.0.0",
+  "description": "it's 2048",
+  "homepage": "https://github.com/sambo4118/2048-remade#readme",
+  "bugs": {
+    "url": "https://github.com/sambo4118/2048-remade/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sambo4118/2048-remade.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test",
+    "start": "node server.js"
+  }
+}
