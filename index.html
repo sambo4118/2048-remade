@@ -18,10 +18,28 @@
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       }
 
+      .board {
+        position: relative;
+        width: 520px;
+        height: 520px;
+      }
+      .board canvas {
+        position: absolute;
+        inset: 0;
+      }
+      #gameCanvas {
+        z-index: 2;
+        background: transparent;
+        pointer-events: none;
+      }
+      #gridCanvas {
+        z-index: 1;
+        background: #1f2530;
+      }
+
       canvas {
         width: min(92vw, 520px);
         height: min(92vw, 520px);
-        background: #1f2530;
         border-radius: 14px;
         box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -29,7 +47,11 @@
     </style>
   </head>
   <body>
-    <canvas id="gameCanvas" width="520" height="520"></canvas>
+    <div class="board">
+      <canvas id="gridCanvas" width="520" height="520"></canvas>
+      <canvas id="gameCanvas" width="520" height="520"></canvas>
+
+    </div>
     <script src="./index.js"></script>
   </body>
 </html>
