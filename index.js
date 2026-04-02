@@ -242,15 +242,19 @@ class Tile {
         const endPx = this.grid.padding + endX * cellStride;
         const endPy = this.grid.padding + endY * cellStride;
         const durationMs = 120;
-        const startTime = performance.now();
+        let startTime = null;
         this.isAnimating = true;
 
         context.clearRect(0, 0, canvas.width, canvas.height);
         this.drawTileAt(startPx, startPy);
 
         const step = (now) => {
+            if (startTime === null) {
+                startTime = now;
+            }
+
             const elapsed = now - startTime;
-            const t = Math.min(elapsed / durationMs, 1);
+            const t = Math.max(0, Math.min(elapsed / durationMs, 1));
             const eased = 1 - Math.pow(1 - t, 3);
             const px = startPx + (endPx - startPx) * eased;
             const py = startPy + (endPy - startPy) * eased;
@@ -276,9 +280,180 @@ class Tile {
 
 Tile.inputBound = false;
 
+function generateRandomTile(grid) {
+    const emptyCells = [];
+    for (let y = 0; y < grid.size; y++) {
+        for (let x = 0; x < grid.size; x++) {
+            if (grid.cells[y][x] === 0) {
+                emptyCells.push({ x, y });
+            }
+        }
+    }
+    if (emptyCells.length === 0) return false;
+    
+    const randomIndex = Math.floor(Math.random() * emptyCells.length);
+    const { x, y } = emptyCells[randomIndex];
+    const value = Math.random() < 0.9 ? 2 : 4;
+    const tile = new Tile(grid, value, x, y);
+    return tile;
+}
+
+function drawTileValueAt(grid, value, px, py) {
+    const tileColor = TILE_COLORS[value] || "#3b4252";
+    const textColor = TILE_TEXT_COLORS[value] || "#e6edf7";
+
+    context.fillStyle = tileColor;
+    context.beginPath();
+    context.roundRect(px, py, grid.cellSize, grid.cellSize, grid.cellRadius);
+    context.fill();
+
+    context.fillStyle = textColor;
+    context.font = `bold ${Math.floor(grid.cellSize * 0.35)}px Segoe UI`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(String(value), px + grid.cellSize / 2, py + grid.cellSize / 2);
+}
+
+function drawAllTiles(grid) {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < grid.size; y++) {
+        for (let x = 0; x < grid.size; x++) {
+            const tile = grid.cells[y][x];
+            if (tile instanceof Tile) {
+                tile.drawTile();
+            }
+        }
+    }
+}
+
+function moveAllTiles(grid, direction) {
+    let moved = false;
+    const xOrder = [...Array(grid.size).keys()];
+    const yOrder = [...Array(grid.size).keys()];
+
+    if (direction === 1) {
+        xOrder.reverse();
+    }
+    if (direction === 2) {
+        yOrder.reverse();
+    }
+
+    for (const y of yOrder) {
+        for (const x of xOrder) {
+            const tile = grid.cells[y][x];
+            if (!(tile instanceof Tile)) continue;
+            const distance = tile.moveDirection(direction);
+            if (distance > 0) {
+                moved = true;
+            }
+        }
+    }
+
+    return moved;
+}
+
+let isBoardAnimating = false;
+
+function animateBoardMove(grid, direction) {
+    if (isBoardAnimating) return;
+
+    const beforeState = new Map();
+    for (let y = 0; y < grid.size; y++) {
+        for (let x = 0; x < grid.size; x++) {
+            const tile = grid.cells[y][x];
+            if (tile instanceof Tile) {
+                beforeState.set(tile, { x: tile.x, y: tile.y, value: tile.value });
+            }
+        }
+    }
+
+    const moved = moveAllTiles(grid, direction);
+    if (!moved) {
+        return;
+    }
+
+    const tileStride = grid.cellSize + grid.gap;
+    const tilesForDraw = [];
+
+    for (let y = 0; y < grid.size; y++) {
+        for (let x = 0; x < grid.size; x++) {
+            const tile = grid.cells[y][x];
+            if (!(tile instanceof Tile)) continue;
+
+            const start = beforeState.get(tile) || { x: tile.x, y: tile.y, value: tile.value };
+            tilesForDraw.push({
+                startX: start.x,
+                startY: start.y,
+                endX: tile.x,
+                endY: tile.y,
+                startValue: start.value,
+                endValue: tile.value
+            });
+        }
+    }
+
+    const durationMs = 120;
+    let startTime = null;
+    isBoardAnimating = true;
+
+    const step = (now) => {
+        if (startTime === null) {
+            startTime = now;
+        }
+
+        const elapsed = now - startTime;
+        const t = Math.max(0, Math.min(elapsed / durationMs, 1));
+        const eased = 1 - Math.pow(1 - t, 3);
+
+        context.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (const tile of tilesForDraw) {
+            const drawX = tile.startX + (tile.endX - tile.startX) * eased;
+            const drawY = tile.startY + (tile.endY - tile.startY) * eased;
+            const px = grid.padding + drawX * tileStride;
+            const py = grid.padding + drawY * tileStride;
+            const value = t < 1 ? tile.startValue : tile.endValue;
+            drawTileValueAt(grid, value, px, py);
+        }
+
+        if (t < 1) {
+            requestAnimationFrame(step);
+            return;
+        }
+
+        generateRandomTile(grid);
+        drawAllTiles(grid);
+        isBoardAnimating = false;
+    };
+
+    requestAnimationFrame(step);
+}
+
 const grid = new Grid(gridContext, 4);
 grid.drawGrid();
 
-const testTile = new Tile(grid, 2, 0, 0);
-testTile.drawTile();
-testTile.setupInput();
+generateRandomTile(grid);
+generateRandomTile(grid);
+drawAllTiles(grid);
+
+const keyToDirection = {
+    "ArrowUp": 0,
+    "ArrowRight": 1,
+    "ArrowDown": 2,
+    "ArrowLeft": 3,
+    "w": 0,
+    "d": 1,
+    "s": 2,
+    "a": 3
+};
+
+window.addEventListener("keydown", (event) => {
+    if (event.repeat || isBoardAnimating) return;
+
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    const direction = keyToDirection[key];
+    if (direction === undefined) return;
+
+    event.preventDefault();
+    animateBoardMove(grid, direction);
+});
