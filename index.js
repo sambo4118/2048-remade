@@ -2,6 +2,18 @@ const canvas = document.getElementById("gameCanvas");
 const gridCanvas = document.getElementById("gridCanvas");
 const context = canvas.getContext("2d");
 const gridContext = gridCanvas.getContext("2d");
+const scoreValueElement = document.getElementById("scoreValue");
+const leaderboardListElement = document.getElementById("leaderboardList");
+const gameOverOverlay = document.getElementById("gameOverOverlay");
+const finalScoreValueElement = document.getElementById("finalScoreValue");
+const submitStatusElement = document.getElementById("submitStatus");
+const initialsForm = document.getElementById("initialsForm");
+const initialsInput = document.getElementById("initialsInput");
+const submitScoreButton = document.getElementById("submitScoreButton");
+const playAgainButton = document.getElementById("playAgainButton");
+
+const GAME_ID = "2048";
+const LEADERBOARD_LIMIT = 10;
 
 const TILE_COLORS = {
   2: "#7aa2f7",
@@ -176,31 +188,6 @@ class Tile {
         return moveTo; // number of spaces moved
     }
 
-    setupInput() {
-        if (Tile.inputBound) return;
-        Tile.inputBound = true;
-
-        window.addEventListener("keydown", (event) => {
-            if (event.repeat || this.isAnimating) return;
-
-            const keyToDirection = {
-                "ArrowUp": 0,
-                "ArrowRight": 1,
-                "ArrowDown": 2,
-                "ArrowLeft": 3,
-                "w": 0,
-                "d": 1,
-                "s": 2,
-                "a": 3
-            };
-            const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-            const direction = keyToDirection[key];
-            if (direction === undefined) return;
-            event.preventDefault();
-            this.animateMove(direction);
-        });
-    }
-
     drawTileAt(px, py) {
         const tileColor = TILE_COLORS[this.value] || "#3b4252";
         const textColor = TILE_TEXT_COLORS[this.value] || "#e6edf7";
@@ -278,8 +265,6 @@ class Tile {
 
 }
 
-Tile.inputBound = false;
-
 function generateRandomTile(grid) {
     const emptyCells = [];
     for (let y = 0; y < grid.size; y++) {
@@ -353,8 +338,171 @@ function moveAllTiles(grid, direction) {
 }
 
 let isBoardAnimating = false;
+let grid = null;
+let currentScore = 0;
+let gameIsOver = false;
+let scoreSubmitted = false;
 
-function animateBoardMove(grid, direction) {
+function formatScore(score) {
+    return Number(score || 0).toLocaleString("en-US");
+}
+
+function sanitizeInitials(value) {
+    return String(value || "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 3);
+}
+
+function calculateBoardScore(grid) {
+    let total = 0;
+    for (let y = 0; y < grid.size; y++) {
+        for (let x = 0; x < grid.size; x++) {
+            const tile = grid.cells[y][x];
+            if (tile instanceof Tile) {
+                total += tile.value;
+            }
+        }
+    }
+    return total;
+}
+
+function canMakeAnyMove(grid) {
+    for (let y = 0; y < grid.size; y++) {
+        for (let x = 0; x < grid.size; x++) {
+            const tile = grid.cells[y][x];
+            if (!(tile instanceof Tile)) {
+                return true;
+            }
+
+            const right = x + 1 < grid.size ? grid.cells[y][x + 1] : null;
+            const down = y + 1 < grid.size ? grid.cells[y + 1][x] : null;
+
+            if (right instanceof Tile && right.value === tile.value) {
+                return true;
+            }
+            if (down instanceof Tile && down.value === tile.value) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function updateScoreUI() {
+    scoreValueElement.textContent = formatScore(currentScore);
+}
+
+function setSubmitStatus(message, isError = false) {
+    submitStatusElement.textContent = message;
+    submitStatusElement.style.color = isError ? "#ff9aa9" : "#b0c6dd";
+}
+
+function toggleOverlay(show) {
+    gameOverOverlay.classList.toggle("visible", show);
+    gameOverOverlay.setAttribute("aria-hidden", show ? "false" : "true");
+}
+
+function renderLeaderboard(entries) {
+    leaderboardListElement.innerHTML = "";
+
+    if (!entries.length) {
+        const item = document.createElement("li");
+        item.className = "leaderboard-item";
+        item.textContent = "No scores yet.";
+        leaderboardListElement.appendChild(item);
+        return;
+    }
+
+    entries.slice(0, LEADERBOARD_LIMIT).forEach((entry, index) => {
+        const item = document.createElement("li");
+        item.className = "leaderboard-item";
+
+        const rank = document.createElement("span");
+        rank.className = "leaderboard-rank";
+        rank.textContent = `#${index + 1}`;
+
+        const name = document.createElement("span");
+        name.className = "leaderboard-name";
+        name.textContent = String(entry.name || "---").slice(0, 24);
+
+        const score = document.createElement("span");
+        score.className = "leaderboard-score";
+        score.textContent = formatScore(entry.score || 0);
+
+        item.appendChild(rank);
+        item.appendChild(name);
+        item.appendChild(score);
+
+        leaderboardListElement.appendChild(item);
+    });
+}
+
+async function fetchLeaderboard() {
+    try {
+        const response = await fetch(`/api/games/${encodeURIComponent(GAME_ID)}/leaderboard?max=${LEADERBOARD_LIMIT}`);
+        if (!response.ok) {
+            throw new Error(`Leaderboard fetch failed (${response.status})`);
+        }
+
+        const payload = await response.json();
+        const entries = Array.isArray(payload.leaderboard) ? payload.leaderboard : [];
+        renderLeaderboard(entries);
+    } catch (error) {
+        renderLeaderboard([]);
+    }
+}
+
+async function submitLeaderboardScore(name, score) {
+    const response = await fetch(`/api/games/${encodeURIComponent(GAME_ID)}/leaderboard`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ name, score })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const message = typeof payload.error === "string" ? payload.error : "Failed to submit score";
+        throw new Error(message);
+    }
+
+    return payload;
+}
+
+function handleLoss() {
+    if (gameIsOver) {
+        return;
+    }
+
+    gameIsOver = true;
+    scoreSubmitted = false;
+    finalScoreValueElement.textContent = formatScore(currentScore);
+    submitScoreButton.disabled = false;
+    setSubmitStatus("Enter 1-3 initials, then submit to leaderboard.");
+    toggleOverlay(true);
+    initialsInput.value = "";
+    initialsInput.focus();
+}
+
+function createNewGame() {
+    grid = new Grid(gridContext, 4);
+    grid.drawGrid();
+
+    generateRandomTile(grid);
+    generateRandomTile(grid);
+    drawAllTiles(grid);
+
+    currentScore = calculateBoardScore(grid);
+    gameIsOver = false;
+    scoreSubmitted = false;
+    updateScoreUI();
+    toggleOverlay(false);
+}
+
+function animateBoardMove(grid, direction, onComplete) {
     if (isBoardAnimating) return;
 
     const beforeState = new Map();
@@ -369,7 +517,7 @@ function animateBoardMove(grid, direction) {
 
     const moved = moveAllTiles(grid, direction);
     if (!moved) {
-        return;
+        return false;
     }
 
     const tileStride = grid.cellSize + grid.gap;
@@ -424,17 +572,18 @@ function animateBoardMove(grid, direction) {
         generateRandomTile(grid);
         drawAllTiles(grid);
         isBoardAnimating = false;
+
+        if (typeof onComplete === "function") {
+            onComplete();
+        }
     };
 
     requestAnimationFrame(step);
+    return true;
 }
 
-const grid = new Grid(gridContext, 4);
-grid.drawGrid();
-
-generateRandomTile(grid);
-generateRandomTile(grid);
-drawAllTiles(grid);
+createNewGame();
+fetchLeaderboard();
 
 const keyToDirection = {
     "ArrowUp": 0,
@@ -448,12 +597,64 @@ const keyToDirection = {
 };
 
 window.addEventListener("keydown", (event) => {
-    if (event.repeat || isBoardAnimating) return;
+    if (event.repeat || isBoardAnimating || gameIsOver) return;
 
     const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
     const direction = keyToDirection[key];
     if (direction === undefined) return;
 
     event.preventDefault();
-    animateBoardMove(grid, direction);
+    const moved = animateBoardMove(grid, direction, () => {
+        currentScore = calculateBoardScore(grid);
+        updateScoreUI();
+
+        if (!canMakeAnyMove(grid)) {
+            handleLoss();
+        }
+    });
+
+    if (!moved && !canMakeAnyMove(grid)) {
+        handleLoss();
+    }
+});
+
+initialsInput.addEventListener("input", () => {
+    const cleaned = sanitizeInitials(initialsInput.value);
+    if (cleaned !== initialsInput.value) {
+        initialsInput.value = cleaned;
+    }
+});
+
+initialsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!gameIsOver || scoreSubmitted) {
+        return;
+    }
+
+    const initials = sanitizeInitials(initialsInput.value);
+    initialsInput.value = initials;
+
+    if (!initials) {
+        setSubmitStatus("Initials required.", true);
+        return;
+    }
+
+    submitScoreButton.disabled = true;
+    setSubmitStatus("Submitting score...");
+
+    try {
+        const payload = await submitLeaderboardScore(initials, currentScore);
+        const entries = Array.isArray(payload.leaderboard) ? payload.leaderboard : [];
+        renderLeaderboard(entries);
+        scoreSubmitted = true;
+        setSubmitStatus("Score submitted. You are on the board.");
+    } catch (error) {
+        setSubmitStatus(error.message || "Unable to submit score.", true);
+        submitScoreButton.disabled = false;
+    }
+});
+
+playAgainButton.addEventListener("click", () => {
+    createNewGame();
 });

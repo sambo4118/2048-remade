@@ -7,6 +7,15 @@
     <style>
       :root {
         color-scheme: dark;
+        --bg-1: #0a0d12;
+        --bg-2: #101722;
+        --panel: rgba(16, 21, 31, 0.9);
+        --panel-border: rgba(146, 177, 224, 0.28);
+        --ink: #ebf4ff;
+        --ink-soft: #9eb5d3;
+        --accent: #37d58a;
+        --accent-2: #ffce6a;
+        --danger: #ff6f83;
       }
 
       body {
@@ -14,24 +23,93 @@
         min-height: 100vh;
         display: grid;
         place-items: center;
-        background: radial-gradient(circle at 20% 20%, #2a2f3a 0%, #171a21 45%, #0e1015 100%);
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background:
+          radial-gradient(circle at 12% 16%, rgba(55, 213, 138, 0.14), transparent 44%),
+          radial-gradient(circle at 84% 8%, rgba(255, 206, 106, 0.2), transparent 38%),
+          linear-gradient(165deg, var(--bg-1) 0%, var(--bg-2) 100%);
+        color: var(--ink);
+        font-family: "Trebuchet MS", "Segoe UI", sans-serif;
       }
 
-      .board {
+      .arcade-shell {
+        width: min(98vw, 980px);
+        display: grid;
+        gap: 16px;
+        grid-template-columns: 1fr;
+        padding: 18px;
+      }
+
+      .hud {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        padding: 12px 16px;
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+      }
+
+      .title {
+        margin: 0;
+        font-size: 28px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+      }
+
+      .subtitle {
+        margin: 4px 0 0;
+        color: var(--ink-soft);
+        font-size: 13px;
+      }
+
+      .score-chip {
+        background: rgba(13, 35, 20, 0.7);
+        border: 1px solid rgba(55, 213, 138, 0.5);
+        padding: 10px 14px;
+        border-radius: 12px;
+        min-width: 142px;
+        text-align: center;
+      }
+
+      .score-label {
+        color: #9ecbb2;
+        font-size: 11px;
+        letter-spacing: 1.2px;
+      }
+
+      .score-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--accent);
+        line-height: 1;
+      }
+
+      .playfield {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .board-wrap {
         position: relative;
         width: 520px;
         height: 520px;
+        justify-self: center;
       }
-      .board canvas {
+
+      .board-wrap canvas {
         position: absolute;
         inset: 0;
       }
+
       #gameCanvas {
         z-index: 2;
         background: transparent;
         pointer-events: none;
       }
+
       #gridCanvas {
         z-index: 1;
         background: #1f2530;
@@ -44,13 +122,209 @@
         box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
         border: 1px solid rgba(255, 255, 255, 0.08);
       }
+
+      .overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(5, 9, 13, 0.8);
+        border-radius: 14px;
+        backdrop-filter: blur(4px);
+      }
+
+      .overlay.visible {
+        display: flex;
+      }
+
+      .game-over-card {
+        width: min(100%, 380px);
+        background: rgba(14, 20, 28, 0.95);
+        border: 1px solid rgba(255, 111, 131, 0.55);
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 20px 30px rgba(0, 0, 0, 0.4);
+      }
+
+      .game-over-title {
+        margin: 0;
+        color: var(--danger);
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+      }
+
+      .final-score {
+        margin: 10px 0 16px;
+        color: var(--ink-soft);
+        font-size: 14px;
+      }
+
+      .initials-form {
+        display: grid;
+        gap: 10px;
+      }
+
+      .initials-form label {
+        font-size: 12px;
+        letter-spacing: 1.1px;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .initials-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+      }
+
+      .initials-input {
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-size: 22px;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.25);
+        color: var(--ink);
+        padding: 10px;
+      }
+
+      .btn {
+        border: 0;
+        border-radius: 10px;
+        padding: 10px 12px;
+        cursor: pointer;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+
+      .btn-primary {
+        background: var(--accent-2);
+        color: #1f2530;
+      }
+
+      .btn-secondary {
+        background: #2f3e52;
+        color: var(--ink);
+      }
+
+      .overlay-actions {
+        margin-top: 8px;
+      }
+
+      .status-text {
+        min-height: 18px;
+        margin: 2px 0 0;
+        color: #b0c6dd;
+        font-size: 12px;
+      }
+
+      .leaderboard {
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        padding: 12px;
+      }
+
+      .leaderboard h2 {
+        margin: 2px 0 10px;
+        font-size: 16px;
+        letter-spacing: 1.3px;
+        text-transform: uppercase;
+      }
+
+      .leaderboard-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 6px;
+      }
+
+      .leaderboard-item {
+        display: grid;
+        grid-template-columns: 34px 1fr auto;
+        gap: 8px;
+        align-items: center;
+        font-size: 14px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .leaderboard-rank {
+        color: var(--ink-soft);
+      }
+
+      .leaderboard-name {
+        letter-spacing: 1px;
+      }
+
+      .leaderboard-score {
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      @media (min-width: 920px) {
+        .playfield {
+          grid-template-columns: auto minmax(260px, 1fr);
+          align-items: start;
+        }
+      }
     </style>
   </head>
   <body>
-    <div class="board">
-      <canvas id="gridCanvas" width="520" height="520"></canvas>
-      <canvas id="gameCanvas" width="520" height="520"></canvas>
+    <div class="arcade-shell">
+      <section class="hud">
+        <div>
+          <h1 class="title">2048 Arcade</h1>
+          <p class="subtitle">Swipe keys. Chase points. Enter initials on defeat.</p>
+        </div>
+        <div class="score-chip">
+          <div class="score-label">Score</div>
+          <div class="score-value" id="scoreValue">0</div>
+        </div>
+      </section>
 
+      <section class="playfield">
+        <div class="board-wrap">
+          <canvas id="gridCanvas" width="520" height="520"></canvas>
+          <canvas id="gameCanvas" width="520" height="520"></canvas>
+          <div class="overlay" id="gameOverOverlay" aria-hidden="true">
+            <div class="game-over-card">
+              <h2 class="game-over-title">Game Over</h2>
+              <p class="final-score">Final score: <strong id="finalScoreValue">0</strong></p>
+              <form class="initials-form" id="initialsForm">
+                <label for="initialsInput">Enter initials</label>
+                <div class="initials-row">
+                  <input
+                    id="initialsInput"
+                    class="initials-input"
+                    type="text"
+                    inputmode="latin"
+                    autocomplete="off"
+                    maxlength="3"
+                    placeholder="AAA"
+                  />
+                  <button class="btn btn-primary" id="submitScoreButton" type="submit">Submit</button>
+                </div>
+              </form>
+              <p id="submitStatus" class="status-text" aria-live="polite"></p>
+              <div class="overlay-actions">
+                <button class="btn btn-secondary" id="playAgainButton" type="button">Play Again</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="leaderboard">
+          <h2>Leaderboard</h2>
+          <ol class="leaderboard-list" id="leaderboardList"></ol>
+        </aside>
+      </section>
     </div>
     <script src="./index.js"></script>
   </body>
